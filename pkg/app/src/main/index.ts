@@ -1,16 +1,10 @@
 import { app, shell, BrowserWindow, ipcMain, Menu, Tray, globalShortcut } from 'electron'
-import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { autoUpdater, UpdateInfo } from 'electron-updater'
 import icon from '../../resources/icon.png?asset'
 import { LocalServer } from './server'
-import { BackgroundManager } from './background-manager'
-
-// Track if the app is actually quitting
-let isQuitting = false
-
-// Store reference to main window
-let mainWindow: BrowserWindow | null = null
+import { BackgroundManager } from './windows/backgrounds'
+import { createWindow, getMainWindow, setIsQuitting, showMainWindow } from './windows/mainWindow'
 
 // Initialize local server
 const localServer = new LocalServer()
@@ -29,6 +23,7 @@ autoUpdater.on('checking-for-update', () => {
 
 autoUpdater.on('update-available', (info: UpdateInfo) => {
   console.log('Update available:', info)
+  const mainWindow = getMainWindow()
   if (mainWindow) {
     mainWindow.webContents.send('update-available', {
       version: info.version,
@@ -48,6 +43,7 @@ autoUpdater.on('error', (err) => {
 
 autoUpdater.on('download-progress', (progressObj) => {
   console.log('Download progress:', progressObj)
+  const mainWindow = getMainWindow()
   if (mainWindow) {
     mainWindow.webContents.send('update-download-progress', progressObj)
   }
@@ -55,64 +51,11 @@ autoUpdater.on('download-progress', (progressObj) => {
 
 autoUpdater.on('update-downloaded', (info) => {
   console.log('Update downloaded:', info)
+  const mainWindow = getMainWindow()
   if (mainWindow) {
     mainWindow.webContents.send('update-downloaded', info)
   }
 })
-
-function createWindow(): void {
-  // Create the browser window.
-  mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
-    show: false,
-    autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? { icon } : {}),
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
-      webSecurity: false,
-      allowRunningInsecureContent: true,
-      contextIsolation: true,
-      nodeIntegration: false,
-      webviewTag: true,
-      plugins: true
-    }
-  })
-
-  mainWindow.on('ready-to-show', () => {
-    //mainWindow?.show()
-  })
-
-  // Check for updates when window is shown
-  mainWindow.on('show', () => {
-    if (!is.dev) {
-      console.log('Window shown - checking for updates...')
-      autoUpdater.checkForUpdates()
-    }
-  })
-
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
-    return { action: 'deny' }
-  })
-
-  // Close to tray behavior
-  mainWindow.on('close', (event) => {
-    if (!isQuitting) {
-      event.preventDefault()
-      mainWindow?.hide()
-    }
-  })
-
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-  } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
-  }
-}
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
@@ -123,13 +66,7 @@ app.whenReady().then(() => {
 
   // Register global keyboard shortcut (Ctrl+B) to show main window
   globalShortcut.register('CommandOrControl+B', () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.show()
-      mainWindow.focus()
-    } else {
-      // If main window is destroyed, create a new one
-      createWindow()
-    }
+    showMainWindow()
   })
 
   // Default open or close DevTools by F12 in development
@@ -227,7 +164,9 @@ app.whenReady().then(() => {
           ...settings
         }
       }
-      const updateEvent = await localServer.getSettingsService().updateSettings(updatedSettings, 'ipc-client')
+      const updateEvent = await localServer
+        .getSettingsService()
+        .updateSettings(updatedSettings, 'ipc-client')
       return { success: true, data: updateEvent.settings }
     } catch (error) {
       console.error('IPC settings-update-shared error:', error)
@@ -247,7 +186,9 @@ app.whenReady().then(() => {
           }
         }
       }
-      const updateEvent = await localServer.getSettingsService().updateSettings(updatedSettings, 'ipc-client')
+      const updateEvent = await localServer
+        .getSettingsService()
+        .updateSettings(updatedSettings, 'ipc-client')
       return { success: true, data: updateEvent.settings }
     } catch (error) {
       console.error('IPC settings-update-local error:', error)
@@ -300,13 +241,7 @@ app.whenReady().then(() => {
     {
       label: 'Show App',
       click: () => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.show()
-          mainWindow.focus()
-        } else {
-          // If main window is destroyed, create a new one
-          createWindow()
-        }
+        showMainWindow()
       }
     },
     {
@@ -322,7 +257,7 @@ app.whenReady().then(() => {
       label: 'Quit',
       click: () => {
         console.log('Tray quit clicked - starting cleanup...')
-        isQuitting = true
+        setIsQuitting(true)
         if (backgroundManager) {
           backgroundManager.cleanup()
         }
@@ -341,20 +276,14 @@ app.whenReady().then(() => {
 
   // Double click tray icon to show window
   tray.on('double-click', () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.show()
-      mainWindow.focus()
-    } else {
-      // If main window is destroyed, create a new one
-      createWindow()
-    }
+    showMainWindow()
   })
 })
 
 // Handle app quit events to ensure proper cleanup
 app.on('before-quit', () => {
   console.log('App quitting - starting cleanup...')
-  isQuitting = true
+  setIsQuitting(true)
   // Unregister global shortcuts
   globalShortcut.unregisterAll()
   if (backgroundManager) {

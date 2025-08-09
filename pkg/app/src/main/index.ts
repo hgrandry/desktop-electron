@@ -1,6 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, Menu, Tray, globalShortcut } from 'electron'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import { autoUpdater, UpdateInfo } from 'electron-updater'
+import { setupAutoUpdate } from './services/auto-update'
 import icon from '../../resources/icon.png?asset'
 import { LocalServer } from './server'
 import { BackgroundManager } from './windows/backgrounds'
@@ -11,51 +11,6 @@ const localServer = new LocalServer()
 
 // Initialize background manager
 let backgroundManager: BackgroundManager | null = null
-
-// Configure auto-updater
-autoUpdater.autoDownload = false
-autoUpdater.autoInstallOnAppQuit = true
-
-// Auto-updater event handlers
-autoUpdater.on('checking-for-update', () => {
-  console.log('Checking for updates...')
-})
-
-autoUpdater.on('update-available', (info: UpdateInfo) => {
-  console.log('Update available:', info)
-  const mainWindow = getMainWindow()
-  if (mainWindow) {
-    mainWindow.webContents.send('update-available', {
-      version: info.version,
-      releaseDate: info.releaseDate,
-      releaseNotes: info.releaseNotes
-    })
-  }
-})
-
-autoUpdater.on('update-not-available', (info) => {
-  console.log('Update not available:', info)
-})
-
-autoUpdater.on('error', (err) => {
-  console.error('Auto-updater error:', err)
-})
-
-autoUpdater.on('download-progress', (progressObj) => {
-  console.log('Download progress:', progressObj)
-  const mainWindow = getMainWindow()
-  if (mainWindow) {
-    mainWindow.webContents.send('update-download-progress', progressObj)
-  }
-})
-
-autoUpdater.on('update-downloaded', (info) => {
-  console.log('Update downloaded:', info)
-  const mainWindow = getMainWindow()
-  if (mainWindow) {
-    mainWindow.webContents.send('update-downloaded', info)
-  }
-})
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
@@ -131,18 +86,7 @@ app.whenReady().then(() => {
     }
   })
 
-  // IPC handlers for auto-update
-  ipcMain.handle('check-for-updates', () => {
-    autoUpdater.checkForUpdates()
-  })
-
-  ipcMain.handle('download-update', () => {
-    autoUpdater.downloadUpdate()
-  })
-
-  ipcMain.handle('install-update', () => {
-    autoUpdater.quitAndInstall()
-  })
+  const autoUpdate = setupAutoUpdate(getMainWindow)
 
   // IPC handlers for settings
   ipcMain.handle('settings-get', async () => {
@@ -223,7 +167,7 @@ app.whenReady().then(() => {
   if (!is.dev) {
     // Check for updates after a short delay to ensure app is fully loaded
     setTimeout(() => {
-      autoUpdater.checkForUpdates()
+      autoUpdate.checkForUpdates()
     }, 3000)
   }
 

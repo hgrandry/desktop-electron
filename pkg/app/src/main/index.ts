@@ -1,7 +1,8 @@
-import { app, shell, BrowserWindow, ipcMain, Menu, Tray, globalShortcut } from 'electron'
+import { app, BrowserWindow, ipcMain, globalShortcut } from 'electron'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { setupAutoUpdate } from './services/auto-update'
 import icon from '../../resources/icon.png?asset'
+import { createTray } from './windows/tray'
 import { LocalServer } from './server'
 import { BackgroundManager } from './windows/backgrounds'
 import { createWindow, getMainWindow, setIsQuitting, showMainWindow } from './windows/mainWindow'
@@ -171,57 +172,31 @@ app.whenReady().then(() => {
     }, 3000)
   }
 
-  app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
-  })
-
-  const tray = new Tray(icon)
-  tray.setToolTip('Hey Ketsu')
-
-  // Create tray context menu
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: 'Show App',
-      click: () => {
-        showMainWindow()
+  createTray({
+    icon,
+    localServer,
+    showMainWindow,
+    onQuit: () => {
+      console.log('Tray quit clicked - starting cleanup...')
+      setIsQuitting(true)
+      if (backgroundManager) {
+        backgroundManager.cleanup()
       }
-    },
-    {
-      label: 'Open in Browser',
-      click: () => {
-        if (localServer.isServerRunning()) {
-          shell.openExternal(localServer.getUrl())
-        }
-      }
-    },
-    { type: 'separator' },
-    {
-      label: 'Quit',
-      click: () => {
-        console.log('Tray quit clicked - starting cleanup...')
-        setIsQuitting(true)
-        if (backgroundManager) {
-          backgroundManager.cleanup()
-        }
-        localServer.stop()
+      localServer.stop()
 
-        // Force quit after cleanup
-        setTimeout(() => {
-          console.log('Force quitting from tray...')
-          app.exit(0)
-        }, 1000)
-      }
+      // Force quit after cleanup
+      setTimeout(() => {
+        console.log('Force quitting from tray...')
+        app.exit(0)
+      }, 1000)
     }
-  ])
-
-  tray.setContextMenu(contextMenu)
-
-  // Double click tray icon to show window
-  tray.on('double-click', () => {
-    showMainWindow()
   })
+})
+
+app.on('activate', function () {
+  // On macOS it's common to re-create a window in the app when the
+  // dock icon is clicked and there are no other windows open.
+  if (BrowserWindow.getAllWindows().length === 0) createWindow()
 })
 
 // Handle app quit events to ensure proper cleanup

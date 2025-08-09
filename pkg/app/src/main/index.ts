@@ -16,7 +16,7 @@ import {
 } from './windows/mainWindow'
 
 const localServer = new LocalServer()
-let backgroundManager: BackgroundManager | null = null
+const backgroundManager = new BackgroundManager()
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
@@ -38,7 +38,7 @@ app.whenReady().then(() => {
   // Setup IPC handlers
   setupIpc({
     localServer,
-    getBackgroundManager: () => backgroundManager,
+    backgroundManager,
     getMainWindow
   })
 
@@ -49,7 +49,8 @@ app.whenReady().then(() => {
     .start()
     .then(() => {
       // Initialize background manager after server is ready
-      backgroundManager = new BackgroundManager(localServer.getUrl())
+
+      backgroundManager.start(localServer.getUrl())
     })
     .catch((error) => {
       console.error('Failed to start local server:', error)

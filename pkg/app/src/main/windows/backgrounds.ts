@@ -3,14 +3,10 @@ import { attach, detach, reset } from 'electron-as-wallpaper'
 
 export class BackgroundManager {
   private backgroundWindows: Map<number, BrowserWindow> = new Map()
-  private serverUrl: string
+  private serverUrl: string | null = null
 
-  constructor(serverUrl: string) {
+  public start(serverUrl: string): void {
     this.serverUrl = serverUrl
-    this.setupMultiMonitorBackgrounds()
-  }
-
-  private setupMultiMonitorBackgrounds(): void {
     const displays = screen.getAllDisplays()
 
     console.log(`Setting up background windows for ${displays.length} monitor(s)`)

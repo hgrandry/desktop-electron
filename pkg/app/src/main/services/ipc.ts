@@ -4,12 +4,12 @@ import type { BackgroundManager } from '../windows/backgrounds'
 
 type SetupIpcOptions = {
   localServer: LocalServer
-  getBackgroundManager: () => BackgroundManager | null
+  backgroundManager: BackgroundManager
   getMainWindow?: () => Electron.BrowserWindow | null
 }
 
 export function setupIpc(options: SetupIpcOptions) {
-  const { localServer, getBackgroundManager } = options
+  const { localServer, backgroundManager: bg } = options
 
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))
@@ -30,46 +30,28 @@ export function setupIpc(options: SetupIpcOptions) {
 
   // IPC handlers for background management
   ipcMain.handle('reload-background', (_, monitorId: number) => {
-    const bg = getBackgroundManager()
-    if (bg) {
-      bg.reloadBackground(monitorId)
-    }
+    bg?.reloadBackground(monitorId)
   })
 
   ipcMain.handle('reload-all-backgrounds', () => {
-    const bg = getBackgroundManager()
-    if (bg) {
-      bg.reloadAllBackgrounds()
-    }
+    bg?.reloadAllBackgrounds()
   })
 
   // IPC handlers for background interactivity
   ipcMain.handle('make-background-interactive', (_, monitorId: number) => {
-    const bg = getBackgroundManager()
-    if (bg) {
-      bg.makeInteractive(monitorId)
-    }
+    bg?.makeInteractive(monitorId)
   })
 
   ipcMain.handle('make-all-backgrounds-interactive', () => {
-    const bg = getBackgroundManager()
-    if (bg) {
-      bg.makeAllInteractive()
-    }
+    bg?.makeAllInteractive()
   })
 
   ipcMain.handle('make-background-non-interactive', (_, monitorId: number) => {
-    const bg = getBackgroundManager()
-    if (bg) {
-      bg.makeNonInteractive(monitorId)
-    }
+    bg?.makeNonInteractive(monitorId)
   })
 
   ipcMain.handle('make-all-backgrounds-non-interactive', () => {
-    const bg = getBackgroundManager()
-    if (bg) {
-      bg.makeAllNonInteractive()
-    }
+    bg?.makeAllNonInteractive()
   })
 
   // IPC handlers for settings

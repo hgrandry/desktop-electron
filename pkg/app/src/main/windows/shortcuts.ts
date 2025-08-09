@@ -1,12 +1,11 @@
 import { globalShortcut } from 'electron'
+import { MainWindow } from './mainWindow'
 
-type ToggleMainWindowFn = () => void
-
-export function registerGlobalShortcuts(toggleMainWindow: ToggleMainWindowFn) {
+export function registerGlobalShortcuts(mainWindow: MainWindow) {
   // Register global keyboard shortcut (Ctrl+B) to toggle main window
   try {
     globalShortcut.register('CommandOrControl+B', () => {
-      toggleMainWindow()
+      mainWindow.toggle()
     })
   } catch (err) {
     console.error('Failed to register global shortcuts:', err)

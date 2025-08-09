@@ -7,16 +7,34 @@ import icon from '../../resources/icon.png?asset'
 import { createTray } from './windows/tray'
 import { LocalServer } from './server'
 import { BackgroundManager } from './windows/backgrounds'
-import {
-  createWindow,
-  getMainWindow,
-  setIsQuitting,
-  showMainWindow,
-  toggleMainWindow
-} from './windows/mainWindow'
+import { createWindow, mainWindow } from './windows/mainWindow'
 
 const localServer = new LocalServer()
-const backgroundManager = new BackgroundManager()
+const bg = new BackgroundManager()
+
+function setupApp() {
+  const context = {
+    app,
+    icon,
+    localServer,
+    bg,
+    mainWindow
+  }
+
+  createWindow()
+  createTray(context)
+  registerGlobalShortcuts(mainWindow)
+  setupIpc(context)
+
+  localServer
+    .start()
+    .then(() => bg.start(localServer.getUrl()))
+    .catch((error) => console.error('Failed to start local server:', error))
+
+  if (!is.dev) {
+    setTimeout(() => setupAutoUpdate(mainWindow), 3000)
+  }
+}
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
@@ -25,9 +43,6 @@ app.whenReady().then(() => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
-  // Register global keyboard shortcuts
-  registerGlobalShortcuts(toggleMainWindow)
-
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
   // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
@@ -35,54 +50,7 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // Setup IPC handlers
-  setupIpc({
-    localServer,
-    backgroundManager,
-    getMainWindow
-  })
-
-  const autoUpdate = setupAutoUpdate(getMainWindow)
-
-  // Start the local server
-  localServer
-    .start()
-    .then(() => {
-      // Initialize background manager after server is ready
-
-      backgroundManager.start(localServer.getUrl())
-    })
-    .catch((error) => {
-      console.error('Failed to start local server:', error)
-    })
-
-  createWindow()
-
-  // Check for updates (only in production)
-  if (!is.dev) {
-    // Check for updates after a short delay to ensure app is fully loaded
-    setTimeout(() => {
-      autoUpdate.checkForUpdates()
-    }, 3000)
-  }
-
-  createTray({
-    icon,
-    localServer,
-    showMainWindow,
-    onQuit: () => {
-      console.log('Tray quit clicked - starting cleanup...')
-      setIsQuitting(true)
-      backgroundManager?.cleanup()
-      localServer.stop()
-
-      // Force quit after cleanup
-      setTimeout(() => {
-        console.log('Force quitting from tray...')
-        app.exit(0)
-      }, 1000)
-    }
-  })
+  setupApp()
 })
 
 app.on('activate', function () {
@@ -94,9 +62,9 @@ app.on('activate', function () {
 // Handle app quit events to ensure proper cleanup
 app.on('before-quit', () => {
   console.log('App quitting - starting cleanup...')
-  setIsQuitting(true)
+  mainWindow.setIsQuitting(true)
   unregisterGlobalShortcuts()
-  backgroundManager?.cleanup()
+  bg?.cleanup()
   localServer.stop()
 })
 
@@ -104,7 +72,6 @@ app.on('before-quit', () => {
 app.on('will-quit', () => {
   console.log('App will quit - forcing exit...')
   unregisterGlobalShortcuts()
-  // Force exit after 1 second if the app is still running
   setTimeout(() => {
     console.log('Forcing app exit...')
     process.exit(0)
@@ -117,11 +84,8 @@ app.on('will-quit', () => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     unregisterGlobalShortcuts()
-    backgroundManager?.cleanup()
+    bg?.cleanup()
     localServer.stop()
     app.quit()
   }
 })
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.

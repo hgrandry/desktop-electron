@@ -11,12 +11,6 @@ interface ThumbnailRequest {
   reject: (error: Error) => void
 }
 
-// interface ThumbnailOptions {
-//   width: number
-//   height: number
-//   quality: number
-// }
-
 export class ThumbnailService {
   private readonly IMAGES_PATH = 'D:\\pictures\\wall'
   private readonly THUMBNAIL_SIZE = { width: 200, height: 200 }

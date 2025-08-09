@@ -1,15 +1,8 @@
 import { ipcMain, app } from 'electron'
-import type { LocalServer } from '../server'
-import type { BackgroundManager } from '../windows/backgrounds'
+import { AppContext } from './context'
 
-type SetupIpcOptions = {
-  localServer: LocalServer
-  backgroundManager: BackgroundManager
-  getMainWindow?: () => Electron.BrowserWindow | null
-}
-
-export function setupIpc(options: SetupIpcOptions) {
-  const { localServer, backgroundManager: bg } = options
+export function setupIpc(options: AppContext) {
+  const { localServer, bg } = options
 
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))

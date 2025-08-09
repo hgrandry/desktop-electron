@@ -1,19 +1,8 @@
 import { Tray, Menu, shell } from 'electron'
+import { AppContext } from '../services/context'
 
-type LocalServerLike = {
-  isServerRunning: () => boolean
-  getUrl: () => string
-}
-
-type CreateTrayOptions = {
-  icon: string | Electron.NativeImage
-  localServer: LocalServerLike
-  showMainWindow: () => void
-  onQuit: () => void
-}
-
-export function createTray(options: CreateTrayOptions) {
-  const { icon, localServer, showMainWindow, onQuit } = options
+export function createTray(context: AppContext) {
+  const { app, icon, localServer: localServer, mainWindow, bg } = context
 
   const tray = new Tray(icon as any)
   tray.setToolTip('Hey Ketsu')
@@ -22,7 +11,7 @@ export function createTray(options: CreateTrayOptions) {
     {
       label: 'Show App',
       click: () => {
-        showMainWindow()
+        mainWindow.show()
       }
     },
     {
@@ -37,7 +26,16 @@ export function createTray(options: CreateTrayOptions) {
     {
       label: 'Quit',
       click: () => {
-        onQuit()
+        console.log('Tray quit clicked - starting cleanup...')
+        mainWindow.setIsQuitting(true)
+        bg?.cleanup()
+        localServer.stop()
+
+        // Force quit after cleanup
+        setTimeout(() => {
+          console.log('Force quitting from tray...')
+          app.exit(0)
+        }, 1000)
       }
     }
   ])
@@ -46,7 +44,7 @@ export function createTray(options: CreateTrayOptions) {
 
   // Double click tray icon to show window
   tray.on('double-click', () => {
-    showMainWindow()
+    mainWindow.show()
   })
 
   return tray

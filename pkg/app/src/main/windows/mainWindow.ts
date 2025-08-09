@@ -104,3 +104,15 @@ export function showMainWindow(): void {
     createWindow()
   }
 }
+
+export function hideMainWindow(): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.hide()
+  }
+}
+
+export function toggleMainWindow(): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.isVisible() ? hideMainWindow() : showMainWindow()
+  }
+}

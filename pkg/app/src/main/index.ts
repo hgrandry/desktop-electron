@@ -1,16 +1,21 @@
-import { app, BrowserWindow, ipcMain, globalShortcut } from 'electron'
+import { app, BrowserWindow } from 'electron'
+import { registerGlobalShortcuts, unregisterGlobalShortcuts } from './windows/shortcuts'
+import { setupIpc } from './services/ipc'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { setupAutoUpdate } from './services/auto-update'
 import icon from '../../resources/icon.png?asset'
 import { createTray } from './windows/tray'
 import { LocalServer } from './server'
 import { BackgroundManager } from './windows/backgrounds'
-import { createWindow, getMainWindow, setIsQuitting, showMainWindow } from './windows/mainWindow'
+import {
+  createWindow,
+  getMainWindow,
+  setIsQuitting,
+  showMainWindow,
+  toggleMainWindow
+} from './windows/mainWindow'
 
-// Initialize local server
 const localServer = new LocalServer()
-
-// Initialize background manager
 let backgroundManager: BackgroundManager | null = null
 
 // This method will be called when Electron has finished
@@ -20,10 +25,8 @@ app.whenReady().then(() => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
-  // Register global keyboard shortcut (Ctrl+B) to show main window
-  globalShortcut.register('CommandOrControl+B', () => {
-    showMainWindow()
-  })
+  // Register global keyboard shortcuts
+  registerGlobalShortcuts(toggleMainWindow)
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -32,124 +35,14 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
-
-  // IPC handlers for server communication
-  ipcMain.handle('get-server-url', () => {
-    return localServer.getUrl()
-  })
-
-  ipcMain.handle('is-server-running', () => {
-    return localServer.isServerRunning()
-  })
-
-  // IPC handler for app version
-  ipcMain.handle('get-app-version', () => {
-    return app.getVersion()
-  })
-
-  // IPC handlers for background management
-  ipcMain.handle('reload-background', (_, monitorId: number) => {
-    if (backgroundManager) {
-      backgroundManager.reloadBackground(monitorId)
-    }
-  })
-
-  ipcMain.handle('reload-all-backgrounds', () => {
-    if (backgroundManager) {
-      backgroundManager.reloadAllBackgrounds()
-    }
-  })
-
-  // IPC handlers for background interactivity
-  ipcMain.handle('make-background-interactive', (_, monitorId: number) => {
-    if (backgroundManager) {
-      backgroundManager.makeInteractive(monitorId)
-    }
-  })
-
-  ipcMain.handle('make-all-backgrounds-interactive', () => {
-    if (backgroundManager) {
-      backgroundManager.makeAllInteractive()
-    }
-  })
-
-  ipcMain.handle('make-background-non-interactive', (_, monitorId: number) => {
-    if (backgroundManager) {
-      backgroundManager.makeNonInteractive(monitorId)
-    }
-  })
-
-  ipcMain.handle('make-all-backgrounds-non-interactive', () => {
-    if (backgroundManager) {
-      backgroundManager.makeAllNonInteractive()
-    }
+  // Setup IPC handlers
+  setupIpc({
+    localServer,
+    getBackgroundManager: () => backgroundManager,
+    getMainWindow
   })
 
   const autoUpdate = setupAutoUpdate(getMainWindow)
-
-  // IPC handlers for settings
-  ipcMain.handle('settings-get', async () => {
-    try {
-      const settings = await localServer.getSettingsService().getSettings()
-      return { success: true, data: settings }
-    } catch (error) {
-      console.error('IPC settings-get error:', error)
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
-    }
-  })
-
-  ipcMain.handle('settings-update-shared', async (_, settings) => {
-    try {
-      const currentSettings = await localServer.getSettingsService().getSettings()
-      const updatedSettings = {
-        shared: {
-          ...currentSettings.shared,
-          ...settings
-        }
-      }
-      const updateEvent = await localServer
-        .getSettingsService()
-        .updateSettings(updatedSettings, 'ipc-client')
-      return { success: true, data: updateEvent.settings }
-    } catch (error) {
-      console.error('IPC settings-update-shared error:', error)
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
-    }
-  })
-
-  ipcMain.handle('settings-update-local', async (_, screenId, settings) => {
-    try {
-      const currentSettings = await localServer.getSettingsService().getSettings()
-      const updatedSettings = {
-        screens: {
-          ...currentSettings.screens,
-          [screenId]: {
-            ...currentSettings.screens[screenId],
-            ...settings
-          }
-        }
-      }
-      const updateEvent = await localServer
-        .getSettingsService()
-        .updateSettings(updatedSettings, 'ipc-client')
-      return { success: true, data: updateEvent.settings }
-    } catch (error) {
-      console.error('IPC settings-update-local error:', error)
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
-    }
-  })
-
-  ipcMain.handle('settings-is-available', async () => {
-    try {
-      await localServer.getSettingsService().getSettings()
-      return { success: true, data: true }
-    } catch (error) {
-      console.error('IPC settings-is-available error:', error)
-      return { success: false, data: false }
-    }
-  })
 
   // Start the local server
   localServer
@@ -179,9 +72,7 @@ app.whenReady().then(() => {
     onQuit: () => {
       console.log('Tray quit clicked - starting cleanup...')
       setIsQuitting(true)
-      if (backgroundManager) {
-        backgroundManager.cleanup()
-      }
+      backgroundManager?.cleanup()
       localServer.stop()
 
       // Force quit after cleanup
@@ -203,19 +94,15 @@ app.on('activate', function () {
 app.on('before-quit', () => {
   console.log('App quitting - starting cleanup...')
   setIsQuitting(true)
-  // Unregister global shortcuts
-  globalShortcut.unregisterAll()
-  if (backgroundManager) {
-    backgroundManager.cleanup()
-  }
+  unregisterGlobalShortcuts()
+  backgroundManager?.cleanup()
   localServer.stop()
 })
 
 // Force quit after a timeout if normal quit doesn't work
 app.on('will-quit', () => {
   console.log('App will quit - forcing exit...')
-  // Unregister global shortcuts
-  globalShortcut.unregisterAll()
+  unregisterGlobalShortcuts()
   // Force exit after 1 second if the app is still running
   setTimeout(() => {
     console.log('Forcing app exit...')
@@ -228,11 +115,8 @@ app.on('will-quit', () => {
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    // Unregister global shortcuts
-    globalShortcut.unregisterAll()
-    if (backgroundManager) {
-      backgroundManager.cleanup()
-    }
+    unregisterGlobalShortcuts()
+    backgroundManager?.cleanup()
     localServer.stop()
     app.quit()
   }

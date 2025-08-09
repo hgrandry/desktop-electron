@@ -6,8 +6,8 @@ import { constants } from 'fs'
 import { createServer } from 'http'
 import { Server as SocketIOServer } from 'socket.io'
 import { watch } from 'chokidar'
-import { ThumbnailService } from './services/thumbnail-service'
-import { SettingsService } from './services/settings-service'
+import { ThumbnailService } from './services/thumbnails'
+import { SettingsService } from './services/settings'
 
 export class LocalServer {
   private server: express.Application

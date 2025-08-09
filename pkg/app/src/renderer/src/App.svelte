@@ -39,7 +39,6 @@
 </script>
 
 <DebugContext>
-  <DebugMenu visible={true} />
   <SettingsPanel {images} expanded={true} />
   <SettingsServerUpdate />
   <ScreenSwitcher />
@@ -52,6 +51,7 @@
     <ServerInfo />
     <Versions />
   {/if}
+  <DebugMenu visible={true} align="bottom-right" margin={{ x: '1rem', y: '3rem' }} />
 </DebugContext>
 
 <style>

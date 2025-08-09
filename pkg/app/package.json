@@ -34,7 +34,7 @@
     "build:linux": "npm run build:all && electron-builder --linux"
   },
   "dependencies": {
-    "@hgrandry/dbg": "0.1.5",
+    "@hgrandry/dbg": "0.1.9",
     "@heyketsu/shared": "file:../shared",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
